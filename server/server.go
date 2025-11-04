@@ -32,6 +32,7 @@ func NewEchoServer(db database.DatabaseClient) Server{
 	// ✅ CORS configuration
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{
+			"http://13.203.234.131:3000",
 			"http://localhost:3000",  // React dev server
 		},
 		AllowMethods: []string{

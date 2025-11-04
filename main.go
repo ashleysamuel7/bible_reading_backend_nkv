@@ -4,6 +4,7 @@ import (
 	"bible_reading_backend_nkv/database"
 	"bible_reading_backend_nkv/server"
 	"log"
+    _ "time/tzdata"
 )
 
 func main (){

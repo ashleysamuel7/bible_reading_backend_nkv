@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"strings"
+	"time"
 	"bible_reading_backend_nkv/dto"
 	"github.com/labstack/echo/v4"
 )
@@ -70,14 +72,39 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 	var req dto.ExplainRequest
 
     if err := ctx.Bind(&req); err != nil {
-        // log full error server-side too
-        fmt.Printf("Bind error: %#v\n", err)
+        log.Printf("Bind error: %v", err)
         return ctx.JSON(http.StatusBadRequest, map[string]string{
-            "error": err.Error(),
+            "error": "Invalid request parameters",
         })
     }
 
-	// fmt.Print(req)
+	// Set default values if not provided
+	if req.Age == 0 {
+		req.Age = 25
+	}
+	if req.Belief == 0 {
+		req.Belief = 3
+	}
+
+	// Check if OpenAI API key is set
+	apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	apiKey = strings.Trim(apiKey, `"'`)
+	apiKey = strings.TrimSpace(apiKey)
+	
+	if apiKey == "" {
+		log.Printf("ERROR: OPENAI_API_KEY not set")
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "OpenAI API key not configured",
+		})
+	}
+	
+	if !strings.HasPrefix(apiKey, "sk-") {
+		log.Printf("ERROR: Invalid API key format")
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Invalid API key format",
+		})
+	}
+
 	// Construct the OpenAI prompt
 	promptIntro := fmt.Sprintf(
 		"Context: Book %s, Chapter %d, Verses %d-%d, Age %d, Belief %d/5. "+
@@ -95,30 +122,56 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 		},
 	}
 
-	body, _ := json.Marshal(openaiReq)
+	body, err := json.Marshal(openaiReq)
+	if err != nil {
+		log.Printf("ERROR: Failed to marshal request: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to prepare request"})
+	}
 
 	reqHTTP, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(body))
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create OpenAI request"})
+		log.Printf("ERROR: Failed to create request: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create request"})
 	}
 	reqHTTP.Header.Set("Content-Type", "application/json")
-	reqHTTP.Header.Set("Authorization", "Bearer "+os.Getenv("OPENAI_API_KEY"))
+	reqHTTP.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
 	resp, err := client.Do(reqHTTP)
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "OpenAI API call failed"})
+		log.Printf("ERROR: API call failed: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to get explanation",
+		})
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("ERROR: Failed to read response: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read response"})
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("ERROR: API returned status %d", resp.StatusCode)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to get explanation",
+		})
+	}
+
 	var aiResp dto.OpenAIResponse
 	if err := json.Unmarshal(respBody, &aiResp); err != nil {
-		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to parse OpenAI response"})
+		log.Printf("ERROR: Failed to parse response: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "Failed to parse response",
+		})
 	}
 
 	if len(aiResp.Choices) == 0 {
-		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Empty response from OpenAI"})
+		log.Printf("ERROR: Empty response from API")
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "No explanation available"})
 	}
 
 	return ctx.JSON(http.StatusOK, map[string]string{
