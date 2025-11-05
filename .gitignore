@@ -1,1 +1,45 @@
+# Environment variables
 .env
+.env.local
+
+# Test reports and coverage
+test/reports/*.md
+test/reports/*.html
+test/reports/*.json
+test/reports/*.xml
+test/coverage.out
+test/coverage.html
+*.test
+
+# Keep directory structure
+!test/reports/.gitkeep
+!test/fixtures/.gitkeep
+
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server-bin
+server
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+server.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.tar

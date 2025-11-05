@@ -1,0 +1,1126 @@
+{
+  "tests": [
+    {
+      "endpoint": {
+        "method": "GET",
+        "path": "/readiness",
+        "auth_required": "No"
+      },
+      "purpose": "Check database connectivity and application readiness",
+      "test_cases": [
+        {
+          "id": "HEALTH.READINESS.001",
+          "title": "Readiness check with healthy database connection",
+          "type": "integration",
+          "preconditions": [
+            "Database server is running and accessible",
+            "DB_DSN environment variable is properly configured",
+            "Application has established database connection"
+          ],
+          "steps": [
+            "1. Ensure database is running and accessible",
+            "2. Start the backend application",
+            "3. Wait for application to initialize",
+            "4. Send GET request to /readiness endpoint"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/readiness",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["OK"]
+              }
+            },
+            "required": ["status"]
+          },
+          "expected_response_example": {
+            "status": "OK"
+          },
+          "cleanup_steps": [],
+          "severity": "critical"
+        },
+        {
+          "id": "HEALTH.READINESS.002",
+          "title": "Readiness check with database connection failure",
+          "type": "integration",
+          "preconditions": [
+            "Database server is not running or inaccessible",
+            "DB_DSN environment variable points to invalid database"
+          ],
+          "steps": [
+            "1. Configure invalid DB_DSN or stop database",
+            "2. Start the backend application",
+            "3. Wait for application to attempt connection",
+            "4. Send GET request to /readiness endpoint"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/readiness",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [500],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["Failure"]
+              }
+            },
+            "required": ["status"]
+          },
+          "expected_response_example": {
+            "status": "Failure"
+          },
+          "cleanup_steps": [
+            "Restore valid database connection"
+          ],
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "endpoint": {
+        "method": "GET",
+        "path": "/liveness",
+        "auth_required": "No"
+      },
+      "purpose": "Check if application is alive and responding",
+      "test_cases": [
+        {
+          "id": "HEALTH.LIVENESS.001",
+          "title": "Liveness check with running application",
+          "type": "integration",
+          "preconditions": [
+            "Application is running",
+            "HTTP server is listening on port 8000"
+          ],
+          "steps": [
+            "1. Start the backend application",
+            "2. Send GET request to /liveness endpoint"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/liveness",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["OK"]
+              }
+            },
+            "required": ["status"]
+          },
+          "expected_response_example": {
+            "status": "OK"
+          },
+          "cleanup_steps": [],
+          "severity": "critical"
+        }
+      ]
+    },
+    {
+      "endpoint": {
+        "method": "GET",
+        "path": "/api/niv/verses",
+        "auth_required": "No"
+      },
+      "purpose": "Retrieve all Bible verses from the database",
+      "test_cases": [
+        {
+          "id": "NIV.VERSES.001",
+          "title": "Get all verses successfully",
+          "type": "integration",
+          "preconditions": [
+            "Database contains NIV verse data",
+            "niv table has at least one record",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Ensure database has seed data",
+            "2. Start the backend application",
+            "3. Send GET request to /api/niv/verses"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/verses",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "book_id": {"type": "integer"},
+                "book": {"type": "string"},
+                "chapter": {"type": "integer"},
+                "verse": {"type": "integer"},
+                "text": {"type": "string"}
+              },
+              "required": ["book_id", "book", "chapter", "verse", "text"]
+            }
+          },
+          "expected_response_example": [
+            {
+              "book_id": 1,
+              "book": "Genesis",
+              "chapter": 1,
+              "verse": 1,
+              "text": "In the beginning God created the heavens and the earth."
+            }
+          ],
+          "cleanup_steps": [],
+          "severity": "high"
+        },
+        {
+          "id": "NIV.VERSES.002",
+          "title": "Get all verses with empty database",
+          "type": "integration",
+          "preconditions": [
+            "Database exists but niv table is empty",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Clear all data from niv table",
+            "2. Start the backend application",
+            "3. Send GET request to /api/niv/verses"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/verses",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "array",
+            "items": {}
+          },
+          "expected_response_example": [],
+          "cleanup_steps": [
+            "Restore database seed data"
+          ],
+          "severity": "medium"
+        },
+        {
+          "id": "NIV.VERSES.003",
+          "title": "Get all verses with database connection error",
+          "type": "integration",
+          "preconditions": [
+            "Database server is not running or connection is lost"
+          ],
+          "steps": [
+            "1. Stop database server or break connection",
+            "2. Start the backend application",
+            "3. Send GET request to /api/niv/verses"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/verses",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [500],
+          "expected_response_schema": {
+            "type": "object"
+          },
+          "expected_response_example": {},
+          "cleanup_steps": [
+            "Restore database connection"
+          ],
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "endpoint": {
+        "method": "GET",
+        "path": "/api/niv/:book/:chapter/verses",
+        "auth_required": "No"
+      },
+      "purpose": "Get all verses for a specific book and chapter",
+      "test_cases": [
+        {
+          "id": "NIV.VERSES_BY_CHAPTER.001",
+          "title": "Get verses for valid book and chapter",
+          "type": "integration",
+          "preconditions": [
+            "Database contains verses for book_id=1, chapter=1",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Ensure database has verses for Genesis chapter 1",
+            "2. Start the backend application",
+            "3. Send GET request with valid book and chapter parameters"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/1/1/verses",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "book_id": {"type": "integer"},
+                "book": {"type": "string"},
+                "chapter": {"type": "integer"},
+                "verse": {"type": "integer"},
+                "text": {"type": "string"}
+              },
+              "required": ["book_id", "book", "chapter", "verse", "text"]
+            }
+          },
+          "expected_response_example": [
+            {
+              "book_id": 1,
+              "book": "Genesis",
+              "chapter": 1,
+              "verse": 1,
+              "text": "In the beginning God created the heavens and the earth."
+            },
+            {
+              "book_id": 1,
+              "book": "Genesis",
+              "chapter": 1,
+              "verse": 2,
+              "text": "Now the earth was formless and empty..."
+            }
+          ],
+          "cleanup_steps": [],
+          "severity": "critical"
+        },
+        {
+          "id": "NIV.VERSES_BY_CHAPTER.002",
+          "title": "Get verses with invalid chapter number (non-numeric)",
+          "type": "integration",
+          "preconditions": [
+            "Application is running",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Start the backend application",
+            "2. Send GET request with non-numeric chapter parameter"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/Gen/abc/verses",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [400],
+          "expected_response_schema": {
+            "type": "string"
+          },
+          "expected_response_example": "Invalid chapter number",
+          "cleanup_steps": [],
+          "severity": "medium"
+        },
+        {
+          "id": "NIV.VERSES_BY_CHAPTER.003",
+          "title": "Get verses for non-existent book and chapter",
+          "type": "integration",
+          "preconditions": [
+            "Database does not contain verses for book_id=999, chapter=999",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Start the backend application",
+            "2. Send GET request with non-existent book and chapter"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/999/999/verses",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "array",
+            "items": {}
+          },
+          "expected_response_example": [],
+          "cleanup_steps": [],
+          "severity": "low"
+        },
+        {
+          "id": "NIV.VERSES_BY_CHAPTER.004",
+          "title": "Get verses with empty chapter parameter",
+          "type": "integration",
+          "preconditions": [
+            "Application is running"
+          ],
+          "steps": [
+            "1. Start the backend application",
+            "2. Send GET request with empty chapter parameter"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/Gen//verses",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [400, 404],
+          "expected_response_schema": {},
+          "expected_response_example": {},
+          "cleanup_steps": [],
+          "severity": "low"
+        }
+      ]
+    },
+    {
+      "endpoint": {
+        "method": "GET",
+        "path": "/api/niv/books",
+        "auth_required": "No"
+      },
+      "purpose": "Get all unique books in the Bible",
+      "test_cases": [
+        {
+          "id": "NIV.BOOKS.001",
+          "title": "Get all books successfully",
+          "type": "integration",
+          "preconditions": [
+            "Database contains NIV verse data with multiple books",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Ensure database has verses from multiple books",
+            "2. Start the backend application",
+            "3. Send GET request to /api/niv/books"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/books",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "book_id": {"type": "integer"},
+                "book": {"type": "string"}
+              },
+              "required": ["book_id", "book"]
+            }
+          },
+          "expected_response_example": [
+            {
+              "book_id": 1,
+              "book": "Genesis"
+            },
+            {
+              "book_id": 2,
+              "book": "Exodus"
+            },
+            {
+              "book_id": 40,
+              "book": "Matthew"
+            }
+          ],
+          "cleanup_steps": [],
+          "severity": "high"
+        },
+        {
+          "id": "NIV.BOOKS.002",
+          "title": "Get books with empty database",
+          "type": "integration",
+          "preconditions": [
+            "Database exists but niv table is empty",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Clear all data from niv table",
+            "2. Start the backend application",
+            "3. Send GET request to /api/niv/books"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/books",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "array",
+            "items": {}
+          },
+          "expected_response_example": [],
+          "cleanup_steps": [
+            "Restore database seed data"
+          ],
+          "severity": "medium"
+        },
+        {
+          "id": "NIV.BOOKS.003",
+          "title": "Get books with database connection error",
+          "type": "integration",
+          "preconditions": [
+            "Database server is not running or connection is lost"
+          ],
+          "steps": [
+            "1. Stop database server or break connection",
+            "2. Start the backend application",
+            "3. Send GET request to /api/niv/books"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/books",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [500],
+          "expected_response_schema": {
+            "type": "object"
+          },
+          "expected_response_example": {},
+          "cleanup_steps": [
+            "Restore database connection"
+          ],
+          "severity": "high"
+        }
+      ]
+    },
+    {
+      "endpoint": {
+        "method": "GET",
+        "path": "/api/niv/chapters/:book",
+        "auth_required": "No"
+      },
+      "purpose": "Get maximum chapter number for a specific book",
+      "test_cases": [
+        {
+          "id": "NIV.CHAPTERS.001",
+          "title": "Get max chapter for valid book",
+          "type": "integration",
+          "preconditions": [
+            "Database contains verses for book_id=1 (Genesis) with maximum chapter 50",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Ensure database has Genesis verses with chapter 50",
+            "2. Start the backend application",
+            "3. Send GET request with valid book parameter"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/chapters/1",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "maxChapter": {
+                "type": "integer"
+              }
+            },
+            "required": ["maxChapter"]
+          },
+          "expected_response_example": {
+            "maxChapter": 50
+          },
+          "cleanup_steps": [],
+          "severity": "high"
+        },
+        {
+          "id": "NIV.CHAPTERS.002",
+          "title": "Get max chapter for non-existent book",
+          "type": "integration",
+          "preconditions": [
+            "Database does not contain verses for book_id=999",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Start the backend application",
+            "2. Send GET request with non-existent book_id"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/chapters/999",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "maxChapter": {
+                "type": ["integer", "null"]
+              }
+            }
+          },
+          "expected_response_example": {
+            "maxChapter": null
+          },
+          "cleanup_steps": [],
+          "severity": "low"
+        },
+        {
+          "id": "NIV.CHAPTERS.003",
+          "title": "Get max chapter with database connection error",
+          "type": "integration",
+          "preconditions": [
+            "Database server is not running or connection is lost"
+          ],
+          "steps": [
+            "1. Stop database server or break connection",
+            "2. Start the backend application",
+            "3. Send GET request to /api/niv/chapters/1"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/chapters/1",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [500],
+          "expected_response_schema": {
+            "type": "object"
+          },
+          "expected_response_example": {},
+          "cleanup_steps": [
+            "Restore database connection"
+          ],
+          "severity": "high"
+        },
+        {
+          "id": "NIV.CHAPTERS.004",
+          "title": "Get max chapter with book abbreviation",
+          "type": "integration",
+          "preconditions": [
+            "Database contains verses for book with abbreviation 'Gen'",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Ensure database has Genesis verses",
+            "2. Start the backend application",
+            "3. Send GET request with book abbreviation"
+          ],
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/niv/chapters/Gen",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200, 500],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "maxChapter": {
+                "type": ["integer", "null"]
+              }
+            }
+          },
+          "expected_response_example": {
+            "maxChapter": 50
+          },
+          "cleanup_steps": [],
+          "severity": "medium"
+        }
+      ]
+    },
+    {
+      "endpoint": {
+        "method": "POST",
+        "path": "/api/niv/explain",
+        "auth_required": "No"
+      },
+      "purpose": "Get AI-generated explanation for a verse range using OpenAI",
+      "test_cases": [
+        {
+          "id": "NIV.EXPLAIN.001",
+          "title": "Get explanation with valid request and OpenAI API key",
+          "type": "integration",
+          "preconditions": [
+            "OPENAI_API_KEY environment variable is set with valid key",
+            "OpenAI API is accessible",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Set valid OPENAI_API_KEY in environment",
+            "2. Start the backend application",
+            "3. Send POST request with valid verse range"
+          ],
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:8000/api/niv/explain",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": {
+              "book": "Gen",
+              "chapter": 1,
+              "start_verse": 1,
+              "end_verse": 3,
+              "age": 25,
+              "belief": 3
+            }
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "explanation": {
+                "type": "string"
+              }
+            },
+            "required": ["explanation"]
+          },
+          "expected_response_example": {
+            "explanation": "These verses describe the creation of the heavens and the earth. In the beginning, God created everything from nothing, establishing the foundation of the universe..."
+          },
+          "cleanup_steps": [],
+          "severity": "critical"
+        },
+        {
+          "id": "NIV.EXPLAIN.002",
+          "title": "Get explanation with missing OpenAI API key",
+          "type": "integration",
+          "preconditions": [
+            "OPENAI_API_KEY environment variable is not set or empty",
+            "Application is running"
+          ],
+          "steps": [
+            "1. Ensure OPENAI_API_KEY is not set",
+            "2. Start the backend application",
+            "3. Send POST request with valid verse range"
+          ],
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:8000/api/niv/explain",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": {
+              "book": "Gen",
+              "chapter": 1,
+              "start_verse": 1,
+              "end_verse": 3
+            }
+          },
+          "expected_status_codes": [500],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["error"]
+          },
+          "expected_response_example": {
+            "error": "OpenAI API key not configured"
+          },
+          "cleanup_steps": [],
+          "severity": "high"
+        },
+        {
+          "id": "NIV.EXPLAIN.003",
+          "title": "Get explanation with invalid request body",
+          "type": "integration",
+          "preconditions": [
+            "Application is running",
+            "OPENAI_API_KEY is set"
+          ],
+          "steps": [
+            "1. Start the backend application",
+            "2. Send POST request with invalid JSON body"
+          ],
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:8000/api/niv/explain",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": "invalid json"
+          },
+          "expected_status_codes": [400],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["error"]
+          },
+          "expected_response_example": {
+            "error": "Invalid request parameters"
+          },
+          "cleanup_steps": [],
+          "severity": "medium"
+        },
+        {
+          "id": "NIV.EXPLAIN.004",
+          "title": "Get explanation with missing required fields",
+          "type": "integration",
+          "preconditions": [
+            "Application is running",
+            "OPENAI_API_KEY is set"
+          ],
+          "steps": [
+            "1. Start the backend application",
+            "2. Send POST request with missing required fields"
+          ],
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:8000/api/niv/explain",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": {
+              "book": "Gen",
+              "chapter": 1
+            }
+          },
+          "expected_status_codes": [400],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["error"]
+          },
+          "expected_response_example": {
+            "error": "Invalid request parameters"
+          },
+          "cleanup_steps": [],
+          "severity": "medium"
+        },
+        {
+          "id": "NIV.EXPLAIN.005",
+          "title": "Get explanation with default age and belief values",
+          "type": "integration",
+          "preconditions": [
+            "OPENAI_API_KEY environment variable is set with valid key",
+            "OpenAI API is accessible",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Set valid OPENAI_API_KEY in environment",
+            "2. Start the backend application",
+            "3. Send POST request without age and belief fields"
+          ],
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:8000/api/niv/explain",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": {
+              "book": "Gen",
+              "chapter": 1,
+              "start_verse": 1,
+              "end_verse": 3
+            }
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "explanation": {
+                "type": "string"
+              }
+            },
+            "required": ["explanation"]
+          },
+          "expected_response_example": {
+            "explanation": "These verses describe the creation story..."
+          },
+          "cleanup_steps": [],
+          "severity": "medium"
+        },
+        {
+          "id": "NIV.EXPLAIN.006",
+          "title": "Get explanation with invalid OpenAI API key",
+          "type": "integration",
+          "preconditions": [
+            "OPENAI_API_KEY environment variable is set with invalid key",
+            "Application is running"
+          ],
+          "steps": [
+            "1. Set invalid OPENAI_API_KEY (e.g., 'sk-invalid-key')",
+            "2. Start the backend application",
+            "3. Send POST request with valid verse range"
+          ],
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:8000/api/niv/explain",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": {
+              "book": "Gen",
+              "chapter": 1,
+              "start_verse": 1,
+              "end_verse": 3
+            }
+          },
+          "expected_status_codes": [500],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["error"]
+          },
+          "expected_response_example": {
+            "error": "Failed to get explanation"
+          },
+          "cleanup_steps": [],
+          "severity": "high"
+        },
+        {
+          "id": "NIV.EXPLAIN.007",
+          "title": "Get explanation with OpenAI API timeout",
+          "type": "integration",
+          "preconditions": [
+            "OPENAI_API_KEY environment variable is set",
+            "OpenAI API is unreachable or slow",
+            "Network timeout configured to 30 seconds"
+          ],
+          "steps": [
+            "1. Set valid OPENAI_API_KEY",
+            "2. Block or slow OpenAI API access",
+            "3. Start the backend application",
+            "4. Send POST request with valid verse range"
+          ],
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:8000/api/niv/explain",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": {
+              "book": "Gen",
+              "chapter": 1,
+              "start_verse": 1,
+              "end_verse": 3
+            }
+          },
+          "expected_status_codes": [500],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["error"]
+          },
+          "expected_response_example": {
+            "error": "Failed to get explanation"
+          },
+          "cleanup_steps": [
+            "Restore OpenAI API access"
+          ],
+          "severity": "medium"
+        },
+        {
+          "id": "NIV.EXPLAIN.008",
+          "title": "Get explanation with invalid API key format",
+          "type": "unit",
+          "preconditions": [
+            "OPENAI_API_KEY is set but does not start with 'sk-'",
+            "Application is running"
+          ],
+          "steps": [
+            "1. Set OPENAI_API_KEY to value not starting with 'sk-'",
+            "2. Start the backend application",
+            "3. Send POST request with valid verse range"
+          ],
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:8000/api/niv/explain",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": {
+              "book": "Gen",
+              "chapter": 1,
+              "start_verse": 1,
+              "end_verse": 3
+            }
+          },
+          "expected_status_codes": [500],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["error"]
+          },
+          "expected_response_example": {
+            "error": "Invalid API key format"
+          },
+          "cleanup_steps": [],
+          "severity": "high"
+        },
+        {
+          "id": "NIV.EXPLAIN.009",
+          "title": "Get explanation with zero age and belief values",
+          "type": "integration",
+          "preconditions": [
+            "OPENAI_API_KEY environment variable is set with valid key",
+            "OpenAI API is accessible",
+            "Database connection is established"
+          ],
+          "steps": [
+            "1. Set valid OPENAI_API_KEY in environment",
+            "2. Start the backend application",
+            "3. Send POST request with age=0 and belief=0"
+          ],
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:8000/api/niv/explain",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "query_params": {},
+            "body": {
+              "book": "Gen",
+              "chapter": 1,
+              "start_verse": 1,
+              "end_verse": 3,
+              "age": 0,
+              "belief": 0
+            }
+          },
+          "expected_status_codes": [200],
+          "expected_response_schema": {
+            "type": "object",
+            "properties": {
+              "explanation": {
+                "type": "string"
+              }
+            },
+            "required": ["explanation"]
+          },
+          "expected_response_example": {
+            "explanation": "These verses describe the creation story..."
+          },
+          "cleanup_steps": [],
+          "severity": "low"
+        },
+        {
+          "id": "NIV.EXPLAIN.010",
+          "title": "Get explanation with CORS preflight request",
+          "type": "security",
+          "preconditions": [
+            "Application is running with CORS enabled",
+            "OPENAI_API_KEY is set"
+          ],
+          "steps": [
+            "1. Start the backend application",
+            "2. Send OPTIONS preflight request from allowed origin"
+          ],
+          "request": {
+            "method": "OPTIONS",
+            "url": "http://localhost:8000/api/niv/explain",
+            "headers": {
+              "Origin": "http://localhost:3000",
+              "Access-Control-Request-Method": "POST",
+              "Access-Control-Request-Headers": "Content-Type"
+            },
+            "query_params": {},
+            "body": null
+          },
+          "expected_status_codes": [200, 204],
+          "expected_response_schema": {},
+          "expected_response_example": {},
+          "cleanup_steps": [],
+          "severity": "medium"
+        }
+      ]
+    }
+  ]
+}
+

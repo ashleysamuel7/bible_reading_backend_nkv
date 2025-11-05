@@ -1,84 +1,102 @@
 package server
 
 import (
-	"fmt"
-	"log"
-	"net/http"
-	"strconv"
+	"bible_reading_backend_nkv/dto"
+	"bible_reading_backend_nkv/server/utils"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
-	"bible_reading_backend_nkv/dto"
+
 	"github.com/labstack/echo/v4"
 )
 
-func (s *EchoServer) GetAllVerse(ctx echo.Context) (error) {
+func (s *EchoServer) GetAllVerse(ctx echo.Context) error {
 	versus, err := s.DB.GetAllVerse(ctx.Request().Context())
-	if(err!=nil){
+	if err != nil {
 		log.Fatalf("server shutdown occured %s", err)
 		return ctx.JSON(http.StatusInternalServerError, err)
 	}
 	return ctx.JSON(http.StatusOK, versus)
-	
+
 }
 
-func (s *EchoServer) GetAllVerseByChapter(ctx echo.Context) (error) {
-	
+func (s *EchoServer) GetAllVerseByChapter(ctx echo.Context) error {
+
 	chapterStr := ctx.Param("chapter")
 
-	chapter, err := strconv.Atoi(chapterStr) 
+	chapter, err := strconv.Atoi(chapterStr)
 	fmt.Printf("chapter s %d", chapter)
 
 	if err != nil {
 		return ctx.String(http.StatusBadRequest, "Invalid chapter number")
 	}
-	
+
 	versus, err := s.DB.GetAllVerseByChapter(ctx.Request().Context(), ctx.Param("book"), chapter)
-	if(err!=nil){
+	if err != nil {
 		log.Fatalf("server shutdown occured %s", err)
 		return ctx.JSON(http.StatusInternalServerError, err)
 	}
 	return ctx.JSON(http.StatusOK, versus)
-	
+
 }
 
-func (s *EchoServer) GetAllBook(ctx echo.Context) (error) {
-	
-	
+func (s *EchoServer) GetAllBook(ctx echo.Context) error {
+
 	versus, err := s.DB.GetAllBook(ctx.Request().Context())
-	if(err!=nil){
+	if err != nil {
 		log.Fatalf("server shutdown occured %s", err)
 		return ctx.JSON(http.StatusInternalServerError, err)
 	}
 	return ctx.JSON(http.StatusOK, versus)
-	
+
 }
-func (s *EchoServer) GetAllChapter(ctx echo.Context) (error) {
-	
+func (s *EchoServer) GetAllChapter(ctx echo.Context) error {
+
 	versus, err := s.DB.GetAllChapter(ctx.Request().Context(), ctx.Param("book"))
-	if(err!=nil){
+	if err != nil {
 		log.Fatalf("server shutdown occured %s", err)
 		return ctx.JSON(http.StatusInternalServerError, err)
 	}
 	return ctx.JSON(http.StatusOK, versus)
-	
+
 }
-func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
-	
-	
+func (s *EchoServer) ExpainVerse(ctx echo.Context) error {
+
 	var req dto.ExplainRequest
 
-    if err := ctx.Bind(&req); err != nil {
-        log.Printf("Bind error: %v", err)
-        return ctx.JSON(http.StatusBadRequest, map[string]string{
-            "error": "Invalid request parameters",
-        })
-    }
+	if err := ctx.Bind(&req); err != nil {
+		log.Printf("Bind error: %v", err)
+		return ctx.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid request parameters",
+		})
+	}
 
-	// Set default values if not provided
+	// Try to get user data from token if available
+	authHeader := ctx.Request().Header.Get("Authorization")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			userID, err := utils.ValidateToken(parts[1])
+			if err == nil {
+				// Token is valid, fetch user data
+				user, err := s.DB.GetUserByID(ctx.Request().Context(), userID)
+				if err == nil && user != nil {
+					// Use user's age and believer_category
+					req.Age = user.Age
+					req.Belief = user.BelieverCategory
+				}
+			}
+		}
+	}
+
+	// Set default values if not provided (fallback if no token or user not found)
 	if req.Age == 0 {
 		req.Age = 25
 	}
@@ -90,14 +108,14 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 	apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	apiKey = strings.Trim(apiKey, `"'`)
 	apiKey = strings.TrimSpace(apiKey)
-	
+
 	if apiKey == "" {
 		log.Printf("ERROR: OPENAI_API_KEY not set")
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "OpenAI API key not configured",
 		})
 	}
-	
+
 	if !strings.HasPrefix(apiKey, "sk-") {
 		log.Printf("ERROR: Invalid API key format")
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
@@ -111,7 +129,7 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 			"Use age and belief only to adjust tone and depth. "+
 			"Do not mention them in the response. "+
 			"Give a clear summary and explain the verses in a simple, relevant way.",
-		req.Book, req.Chapter, req.StartVerse, req.EndVerse, req.Age, req.Belief, 
+		req.Book, req.Chapter, req.StartVerse, req.EndVerse, req.Age, req.Belief,
 	)
 
 	openaiReq := dto.OpenAIRequest{
@@ -120,6 +138,7 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 			{Role: "system", Content: "You are a helpful assistant that explains Bible verses clearly and simply."},
 			{Role: "user", Content: promptIntro},
 		},
+		MaxTokens: 500,
 	}
 
 	body, err := json.Marshal(openaiReq)
