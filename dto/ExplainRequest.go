@@ -9,10 +9,10 @@ type ExplainRequest struct {
 	Belief     int    `json:"belief"`
 }
 
-
 type OpenAIRequest struct {
-	Model    string         `json:"model"`
-	Messages []ChatMessage  `json:"messages"`
+	Model     string        `json:"model"`
+	Messages  []ChatMessage `json:"messages"`
+	MaxTokens int           `json:"max_tokens"`
 }
 
 type ChatMessage struct {

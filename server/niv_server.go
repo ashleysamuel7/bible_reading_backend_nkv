@@ -1,84 +1,111 @@
 package server
 
 import (
-	"fmt"
-	"log"
-	"net/http"
-	"strconv"
+	"bible_reading_backend_nkv/dto"
+	"bible_reading_backend_nkv/server/utils"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
-	"bible_reading_backend_nkv/dto"
+
 	"github.com/labstack/echo/v4"
 )
 
-func (s *EchoServer) GetAllVerse(ctx echo.Context) (error) {
+func (s *EchoServer) GetAllVerse(ctx echo.Context) error {
 	versus, err := s.DB.GetAllVerse(ctx.Request().Context())
-	if(err!=nil){
-		log.Fatalf("server shutdown occured %s", err)
-		return ctx.JSON(http.StatusInternalServerError, err)
+	if err != nil {
+		log.Printf("Error getting all verses: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch verses"})
 	}
 	return ctx.JSON(http.StatusOK, versus)
-	
+
 }
 
-func (s *EchoServer) GetAllVerseByChapter(ctx echo.Context) (error) {
-	
-	chapterStr := ctx.Param("chapter")
+func (s *EchoServer) GetAllVerseByChapter(ctx echo.Context) error {
+	// Parse bookId
+	bookIdStr := ctx.Param("bookId")
+	bookId, err := strconv.Atoi(bookIdStr)
+	if err != nil {
+		return ctx.String(http.StatusBadRequest, "Invalid book ID")
+	}
 
-	chapter, err := strconv.Atoi(chapterStr) 
-	fmt.Printf("chapter s %d", chapter)
-
+	// Parse chapterId
+	chapterStr := ctx.Param("chapterId")
+	chapter, err := strconv.Atoi(chapterStr)
 	if err != nil {
 		return ctx.String(http.StatusBadRequest, "Invalid chapter number")
 	}
-	
-	versus, err := s.DB.GetAllVerseByChapter(ctx.Request().Context(), ctx.Param("book"), chapter)
-	if(err!=nil){
-		log.Fatalf("server shutdown occured %s", err)
-		return ctx.JSON(http.StatusInternalServerError, err)
+
+	versus, err := s.DB.GetAllVerseByChapter(ctx.Request().Context(), bookId, chapter)
+	if err != nil {
+		log.Printf("Error getting verses by chapter (bookId: %d, chapter: %d): %v", bookId, chapter, err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch verses"})
 	}
 	return ctx.JSON(http.StatusOK, versus)
-	
+
 }
 
-func (s *EchoServer) GetAllBook(ctx echo.Context) (error) {
-	
-	
+func (s *EchoServer) GetAllBook(ctx echo.Context) error {
+
 	versus, err := s.DB.GetAllBook(ctx.Request().Context())
-	if(err!=nil){
-		log.Fatalf("server shutdown occured %s", err)
-		return ctx.JSON(http.StatusInternalServerError, err)
+	if err != nil {
+		log.Printf("Error getting all books: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch books"})
 	}
 	return ctx.JSON(http.StatusOK, versus)
-	
+
 }
-func (s *EchoServer) GetAllChapter(ctx echo.Context) (error) {
-	
-	versus, err := s.DB.GetAllChapter(ctx.Request().Context(), ctx.Param("book"))
-	if(err!=nil){
-		log.Fatalf("server shutdown occured %s", err)
-		return ctx.JSON(http.StatusInternalServerError, err)
+func (s *EchoServer) GetAllChapter(ctx echo.Context) error {
+	// Parse bookId
+	bookIdStr := ctx.Param("bookId")
+	bookId, err := strconv.Atoi(bookIdStr)
+	if err != nil {
+		return ctx.String(http.StatusBadRequest, "Invalid book ID")
+	}
+
+	versus, err := s.DB.GetAllChapter(ctx.Request().Context(), bookId)
+	if err != nil {
+		log.Printf("Error getting chapters for book (bookId: %d): %v", bookId, err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch chapters"})
 	}
 	return ctx.JSON(http.StatusOK, versus)
-	
+
 }
-func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
-	
-	
+func (s *EchoServer) ExpainVerse(ctx echo.Context) error {
+
 	var req dto.ExplainRequest
 
-    if err := ctx.Bind(&req); err != nil {
-        log.Printf("Bind error: %v", err)
-        return ctx.JSON(http.StatusBadRequest, map[string]string{
-            "error": "Invalid request parameters",
-        })
-    }
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid request parameters",
+		})
+	}
 
-	// Set default values if not provided
+	// Try to get user data from token if available
+	authHeader := ctx.Request().Header.Get("Authorization")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			userID, err := utils.ValidateToken(parts[1])
+			if err == nil {
+				// Token is valid, fetch user data
+				user, err := s.DB.GetUserByID(ctx.Request().Context(), userID)
+				if err == nil && user != nil {
+					// Use user's age and believer_category
+					req.Age = user.Age
+					req.Belief = user.BelieverCategory
+				}
+			}
+		}
+	}
+
+	// Set default values if not provided (fallback if no token or user not found)
 	if req.Age == 0 {
 		req.Age = 25
 	}
@@ -90,16 +117,14 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 	apiKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	apiKey = strings.Trim(apiKey, `"'`)
 	apiKey = strings.TrimSpace(apiKey)
-	
+
 	if apiKey == "" {
-		log.Printf("ERROR: OPENAI_API_KEY not set")
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "OpenAI API key not configured",
 		})
 	}
-	
+
 	if !strings.HasPrefix(apiKey, "sk-") {
-		log.Printf("ERROR: Invalid API key format")
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Invalid API key format",
 		})
@@ -111,7 +136,7 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 			"Use age and belief only to adjust tone and depth. "+
 			"Do not mention them in the response. "+
 			"Give a clear summary and explain the verses in a simple, relevant way.",
-		req.Book, req.Chapter, req.StartVerse, req.EndVerse, req.Age, req.Belief, 
+		req.Book, req.Chapter, req.StartVerse, req.EndVerse, req.Age, req.Belief,
 	)
 
 	openaiReq := dto.OpenAIRequest{
@@ -120,17 +145,18 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 			{Role: "system", Content: "You are a helpful assistant that explains Bible verses clearly and simply."},
 			{Role: "user", Content: promptIntro},
 		},
+		MaxTokens: 500,
 	}
 
 	body, err := json.Marshal(openaiReq)
 	if err != nil {
-		log.Printf("ERROR: Failed to marshal request: %v", err)
+		log.Printf("Error marshaling OpenAI request: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to prepare request"})
 	}
 
 	reqHTTP, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(body))
 	if err != nil {
-		log.Printf("ERROR: Failed to create request: %v", err)
+		log.Printf("Error creating HTTP request: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create request"})
 	}
 	reqHTTP.Header.Set("Content-Type", "application/json")
@@ -141,7 +167,7 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 	}
 	resp, err := client.Do(reqHTTP)
 	if err != nil {
-		log.Printf("ERROR: API call failed: %v", err)
+		log.Printf("Error calling OpenAI API: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to get explanation",
 		})
@@ -150,12 +176,12 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("ERROR: Failed to read response: %v", err)
+		log.Printf("Error reading OpenAI response: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read response"})
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("ERROR: API returned status %d", resp.StatusCode)
+		log.Printf("OpenAI API returned non-200 status: %d", resp.StatusCode)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to get explanation",
 		})
@@ -163,14 +189,14 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) (error) {
 
 	var aiResp dto.OpenAIResponse
 	if err := json.Unmarshal(respBody, &aiResp); err != nil {
-		log.Printf("ERROR: Failed to parse response: %v", err)
+		log.Printf("Error parsing OpenAI response: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to parse response",
 		})
 	}
 
 	if len(aiResp.Choices) == 0 {
-		log.Printf("ERROR: Empty response from API")
+		log.Printf("OpenAI API returned empty response")
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "No explanation available"})
 	}
 
