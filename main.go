@@ -45,5 +45,4 @@ func main() {
 	if err := serv.Start(); err != nil {
 		log.Fatal(err.Error())
 	}
-	log.Fatal("ash")
 }

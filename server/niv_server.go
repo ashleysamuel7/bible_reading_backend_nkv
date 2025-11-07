@@ -20,28 +20,32 @@ import (
 func (s *EchoServer) GetAllVerse(ctx echo.Context) error {
 	versus, err := s.DB.GetAllVerse(ctx.Request().Context())
 	if err != nil {
-		log.Fatalf("server shutdown occured %s", err)
-		return ctx.JSON(http.StatusInternalServerError, err)
+		log.Printf("Error getting all verses: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch verses"})
 	}
 	return ctx.JSON(http.StatusOK, versus)
 
 }
 
 func (s *EchoServer) GetAllVerseByChapter(ctx echo.Context) error {
+	// Parse bookId
+	bookIdStr := ctx.Param("bookId")
+	bookId, err := strconv.Atoi(bookIdStr)
+	if err != nil {
+		return ctx.String(http.StatusBadRequest, "Invalid book ID")
+	}
 
-	chapterStr := ctx.Param("chapter")
-
+	// Parse chapterId
+	chapterStr := ctx.Param("chapterId")
 	chapter, err := strconv.Atoi(chapterStr)
-	fmt.Printf("chapter s %d", chapter)
-
 	if err != nil {
 		return ctx.String(http.StatusBadRequest, "Invalid chapter number")
 	}
 
-	versus, err := s.DB.GetAllVerseByChapter(ctx.Request().Context(), ctx.Param("book"), chapter)
+	versus, err := s.DB.GetAllVerseByChapter(ctx.Request().Context(), bookId, chapter)
 	if err != nil {
-		log.Fatalf("server shutdown occured %s", err)
-		return ctx.JSON(http.StatusInternalServerError, err)
+		log.Printf("Error getting verses by chapter (bookId: %d, chapter: %d): %v", bookId, chapter, err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch verses"})
 	}
 	return ctx.JSON(http.StatusOK, versus)
 
@@ -51,18 +55,24 @@ func (s *EchoServer) GetAllBook(ctx echo.Context) error {
 
 	versus, err := s.DB.GetAllBook(ctx.Request().Context())
 	if err != nil {
-		log.Fatalf("server shutdown occured %s", err)
-		return ctx.JSON(http.StatusInternalServerError, err)
+		log.Printf("Error getting all books: %v", err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch books"})
 	}
 	return ctx.JSON(http.StatusOK, versus)
 
 }
 func (s *EchoServer) GetAllChapter(ctx echo.Context) error {
-
-	versus, err := s.DB.GetAllChapter(ctx.Request().Context(), ctx.Param("book"))
+	// Parse bookId
+	bookIdStr := ctx.Param("bookId")
+	bookId, err := strconv.Atoi(bookIdStr)
 	if err != nil {
-		log.Fatalf("server shutdown occured %s", err)
-		return ctx.JSON(http.StatusInternalServerError, err)
+		return ctx.String(http.StatusBadRequest, "Invalid book ID")
+	}
+
+	versus, err := s.DB.GetAllChapter(ctx.Request().Context(), bookId)
+	if err != nil {
+		log.Printf("Error getting chapters for book (bookId: %d): %v", bookId, err)
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch chapters"})
 	}
 	return ctx.JSON(http.StatusOK, versus)
 
@@ -72,7 +82,6 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) error {
 	var req dto.ExplainRequest
 
 	if err := ctx.Bind(&req); err != nil {
-		log.Printf("Bind error: %v", err)
 		return ctx.JSON(http.StatusBadRequest, map[string]string{
 			"error": "Invalid request parameters",
 		})
@@ -110,14 +119,12 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) error {
 	apiKey = strings.TrimSpace(apiKey)
 
 	if apiKey == "" {
-		log.Printf("ERROR: OPENAI_API_KEY not set")
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "OpenAI API key not configured",
 		})
 	}
 
 	if !strings.HasPrefix(apiKey, "sk-") {
-		log.Printf("ERROR: Invalid API key format")
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Invalid API key format",
 		})
@@ -143,13 +150,13 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) error {
 
 	body, err := json.Marshal(openaiReq)
 	if err != nil {
-		log.Printf("ERROR: Failed to marshal request: %v", err)
+		log.Printf("Error marshaling OpenAI request: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to prepare request"})
 	}
 
 	reqHTTP, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(body))
 	if err != nil {
-		log.Printf("ERROR: Failed to create request: %v", err)
+		log.Printf("Error creating HTTP request: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create request"})
 	}
 	reqHTTP.Header.Set("Content-Type", "application/json")
@@ -160,7 +167,7 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) error {
 	}
 	resp, err := client.Do(reqHTTP)
 	if err != nil {
-		log.Printf("ERROR: API call failed: %v", err)
+		log.Printf("Error calling OpenAI API: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to get explanation",
 		})
@@ -169,12 +176,12 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) error {
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("ERROR: Failed to read response: %v", err)
+		log.Printf("Error reading OpenAI response: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read response"})
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("ERROR: API returned status %d", resp.StatusCode)
+		log.Printf("OpenAI API returned non-200 status: %d", resp.StatusCode)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to get explanation",
 		})
@@ -182,14 +189,14 @@ func (s *EchoServer) ExpainVerse(ctx echo.Context) error {
 
 	var aiResp dto.OpenAIResponse
 	if err := json.Unmarshal(respBody, &aiResp); err != nil {
-		log.Printf("ERROR: Failed to parse response: %v", err)
+		log.Printf("Error parsing OpenAI response: %v", err)
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to parse response",
 		})
 	}
 
 	if len(aiResp.Choices) == 0 {
-		log.Printf("ERROR: Empty response from API")
+		log.Printf("OpenAI API returned empty response")
 		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "No explanation available"})
 	}
 

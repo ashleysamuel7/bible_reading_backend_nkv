@@ -18,9 +18,9 @@ import (
 type DatabaseClient interface {
 	Ready() bool
 	GetAllVerse(ctx context.Context) ([]models.NIV, error)
-	GetAllVerseByChapter(ctx context.Context, bookId string, chapterId int ) ([]models.NIV, error)
+	GetAllVerseByChapter(ctx context.Context, bookId int, chapterId int ) ([]models.NIV, error)
 	GetAllBook(ctx context.Context) ([]BookDTO , error)
-	GetAllChapter(ctx context.Context,bookId string) (ChapterMaxDTO , error)
+	GetAllChapter(ctx context.Context, bookId int) (ChapterMaxDTO , error)
 	
 	// User management methods
 	CreateUser(ctx context.Context, user *models.User) error

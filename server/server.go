@@ -59,6 +59,7 @@ func NewEchoServer(db database.DatabaseClient) Server{
 	// ✅ CORS configuration
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
 		AllowOrigins: []string{
+			"https://ashley-samuel.in",
 			"http://13.203.234.131:3000",
 			"http://localhost:3000",  // React dev server
 		},
@@ -118,9 +119,9 @@ func (s *EchoServer) registerRoutes(){
 	// NIV endpoints (public, but explain can use token if provided)
 	nivServerGroup := s.echo.Group("/api/niv")
 	nivServerGroup.GET("/verses", s.GetAllVerse)
-	nivServerGroup.GET("/:book/:chapter/verses", s.GetAllVerseByChapter)
+	nivServerGroup.GET("/:bookId/:chapterId/verses", s.GetAllVerseByChapter)
 	nivServerGroup.GET("/books", s.GetAllBook)
-	nivServerGroup.GET("/chapters/:book", s.GetAllChapter)
+	nivServerGroup.GET("/chapters/:bookId", s.GetAllChapter)
 	nivServerGroup.POST("/explain", s.ExpainVerse)
 
 }
